@@ -51,3 +51,37 @@ echo: hello
 3. Останови сервер через `Ctrl+C`
 
 Сервер перестает принимать новые запросы и ждет до 10 секунд завершения активных запросов.
+
+## Nginx + TLS в Docker
+
+Проект можно запустить за Nginx с TLS-терминацией.
+
+### 1) Сгенерировать self-signed сертификаты
+
+В PowerShell из корня проекта:
+
+```powershell
+.\scripts\generate-certs.ps1
+```
+
+Скрипт создаст:
+- `certs/server.crt`
+- `certs/server.key`
+
+### 2) Поднять контейнеры
+
+```bash
+docker compose up --build
+```
+
+Схема:
+- `app` (Go-сервер) слушает `:8080` внутри docker-сети;
+- `nginx` принимает `80/443`, редиректит HTTP -> HTTPS и проксирует на `app:8080`.
+
+### 3) Проверить HTTPS
+
+```bash
+curl -k "https://localhost/echo?msg=hello&delay=1"
+```
+
+Опция `-k` нужна, потому что сертификат самоподписанный.

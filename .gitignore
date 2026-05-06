@@ -1,3 +1,5 @@
+certs/*
+!certs/.gitkeep
 bin/
 dist/
 

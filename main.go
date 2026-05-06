@@ -12,9 +12,11 @@ import (
 	"time"
 )
 
-func main() {
+func newEchoMux() *http.ServeMux {
+	mux := http.NewServeMux()
+
 	// Пример запроса: /echo?msg=hello&delay=3
-	http.HandleFunc("/echo", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/echo", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			http.Error(w, "use GET", http.StatusMethodNotAllowed)
 			return
@@ -44,7 +46,18 @@ func main() {
 		}
 	})
 
-	server := &http.Server{Addr: ":8080"}
+	return mux
+}
+
+func newServer(addr string) *http.Server {
+	return &http.Server{
+		Addr:    addr,
+		Handler: newEchoMux(),
+	}
+}
+
+func main() {
+	server := newServer(":8080")
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
 
