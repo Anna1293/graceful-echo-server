@@ -1,4 +1,4 @@
-package main
+package echo
 
 import (
 	"context"
@@ -6,8 +6,6 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"net/http/httptest"
-	"net/url"
 	"strings"
 	"sync"
 	"testing"
@@ -22,7 +20,7 @@ func startTestServer(t *testing.T) (baseURL string, srv *http.Server, done <-cha
 		t.Fatalf("listen failed: %v", err)
 	}
 
-	srv = newServer(listener.Addr().String())
+	srv = NewServer(listener.Addr().String())
 	serverDone := make(chan error, 1)
 	go func() {
 		err := srv.Serve(listener)
@@ -66,7 +64,6 @@ func TestGracefulShutdownWaitsForInFlightRequest(t *testing.T) {
 		respBody = string(body)
 	}()
 
-	// Даем обработчику зайти в долгую работу до вызова Shutdown.
 	time.Sleep(150 * time.Millisecond)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
@@ -139,47 +136,5 @@ func TestConcurrentShutdownCallsAreSafe(t *testing.T) {
 
 	if err := <-serverDone; err != nil {
 		t.Fatalf("server exited with error: %v", err)
-	}
-}
-
-func TestReverseProxyForwardsRequest(t *testing.T) {
-	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/echo" {
-			t.Fatalf("unexpected path: %s", r.URL.Path)
-		}
-		if got := r.URL.Query().Get("msg"); got != "proxy" {
-			t.Fatalf("unexpected query msg: %s", got)
-		}
-		if got := r.Header.Get("X-Forwarded-Proto"); got != "https" {
-			t.Fatalf("unexpected X-Forwarded-Proto: %s", got)
-		}
-		w.WriteHeader(http.StatusCreated)
-		_, _ = w.Write([]byte("proxied"))
-	}))
-	defer upstream.Close()
-
-	targetURL, err := url.Parse(upstream.URL)
-	if err != nil {
-		t.Fatalf("parse upstream URL failed: %v", err)
-	}
-	proxy := httptest.NewTLSServer(newReverseProxyHandler(targetURL))
-	defer proxy.Close()
-
-	client := proxy.Client()
-	resp, err := client.Get(proxy.URL + "/echo?msg=proxy")
-	if err != nil {
-		t.Fatalf("proxy request failed: %v", err)
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		t.Fatalf("read response failed: %v", err)
-	}
-	if resp.StatusCode != http.StatusCreated {
-		t.Fatalf("expected status %d, got %d", http.StatusCreated, resp.StatusCode)
-	}
-	if got, want := string(body), "proxied"; got != want {
-		t.Fatalf("unexpected response body: got %q want %q", got, want)
 	}
 }

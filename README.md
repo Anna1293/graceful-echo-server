@@ -56,29 +56,33 @@ echo: hello
 
 Оба сервера (backend и proxy) перестают принимать новые запросы и ждут до 10 секунд завершения активных запросов.
 
+## Структура проекта
+
+| Пакет | Назначение |
+|-------|------------|
+| `main.go` | Запуск backend и TLS reverse proxy, graceful shutdown |
+| `internal/echo` | Echo backend (`GET /echo`) |
+| `internal/proxy` | Reverse proxy (замена Nginx), заголовки `X-Forwarded-*` |
+| `internal/certs` | Self-signed TLS при первом запуске |
+| `internal/config` | Адреса и пути к сертификатам (env) |
+
 ## TLS и HTTP/2 для reverse proxy
 
-Перед запуском с TLS нужен self-signed сертификат.
-
-### 1) Сгенерировать self-signed сертификаты
-
-В PowerShell из корня проекта:
+При первом `go run .` сертификаты создаются автоматически в `certs/` (если файлов ещё нет). Либо вручную:
 
 ```powershell
 .\scripts\generate-certs.ps1
 ```
 
-Скрипт создаст:
-- `certs/server.crt`
-- `certs/server.key`
+Файлы: `certs/server.crt`, `certs/server.key` (в `.gitignore`).
 
-### 2) Запустить приложение
+### Запустить приложение
 
 ```bash
 go run .
 ```
 
-### 3) Проверить HTTPS + HTTP/2
+### Проверить HTTPS + HTTP/2
 
 ```bash
 curl -k --http2 "https://localhost:8443/echo?msg=hello&delay=1"
