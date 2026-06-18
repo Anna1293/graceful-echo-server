@@ -18,3 +18,7 @@ coverage.out
 # OS files
 .DS_Store
 Thumbs.db
+
+# TLS material (generate locally; see scripts/generate-certs.ps1)
+certs/*.crt
+certs/*.key
