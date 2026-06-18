@@ -5,7 +5,13 @@ services:
       dockerfile: Dockerfile
     container_name: graceful-echo-app
     ports:
-      - "8080"
+      - "8080:8080"
       - "8443:8443"
     volumes:
-      - ./certs:/app/certs:ro
+      - ./certs:/app/certs
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s

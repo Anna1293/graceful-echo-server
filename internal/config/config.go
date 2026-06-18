@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-// Config holds runtime settings (env vars override defaults).
+// Config — параметры запуска (переменные окружения переопределяют значения по умолчанию).
 type Config struct {
 	BackendAddr      string
 	ProxyAddr        string
@@ -17,7 +17,7 @@ type Config struct {
 	UpstreamTimeout  time.Duration
 }
 
-// Load reads configuration from environment variables.
+// Load читает конфигурацию из переменных окружения.
 func Load() (Config, error) {
 	cfg := Config{
 		BackendAddr:     envOr("BACKEND_ADDR", ":8080"),
@@ -29,16 +29,16 @@ func Load() (Config, error) {
 	}
 
 	if cfg.BackendAddr == "" {
-		return Config{}, fmt.Errorf("BACKEND_ADDR must not be empty")
+		return Config{}, fmt.Errorf("BACKEND_ADDR не должен быть пустым")
 	}
 	if cfg.ProxyAddr == "" {
-		return Config{}, fmt.Errorf("PROXY_ADDR must not be empty")
+		return Config{}, fmt.Errorf("PROXY_ADDR не должен быть пустым")
 	}
 
 	return cfg, nil
 }
 
-// UpstreamURL builds the backend URL for the reverse proxy.
+// UpstreamURL формирует URL backend для reverse proxy.
 func (c Config) UpstreamURL() (*url.URL, error) {
 	host := c.BackendAddr
 	if host[0] == ':' {
@@ -47,6 +47,7 @@ func (c Config) UpstreamURL() (*url.URL, error) {
 	return url.Parse("http://" + host)
 }
 
+// envOr возвращает значение переменной окружения key или fallback, если она не задана.
 func envOr(key, fallback string) string {
 	if v := os.Getenv(key); v != "" {
 		return v

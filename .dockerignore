@@ -1,0 +1,9 @@
+.git
+.github
+certs
+*.md
+Makefile
+.editorconfig
+coverage.out
+*.exe
+*.test

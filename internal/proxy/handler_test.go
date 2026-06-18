@@ -11,6 +11,24 @@ import (
 	"graceful-echo-server/internal/echo"
 )
 
+func TestProxyHealthHandler(t *testing.T) {
+	targetURL, err := url.Parse("http://127.0.0.1:1")
+	if err != nil {
+		t.Fatalf("parse URL: %v", err)
+	}
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/health", nil)
+	NewHandler(targetURL, Options{}).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	if got := rec.Body.String(); got != "ok\n" {
+		t.Fatalf("body = %q", got)
+	}
+}
+
 func TestReverseProxyForwardsRequest(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/echo" {

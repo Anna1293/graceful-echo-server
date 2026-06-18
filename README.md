@@ -1,91 +1,164 @@
 # graceful-echo-server
 
-Минимальный Go-сервис: backend echo-сервер и reverse proxy на `net/http` с TLS и HTTP/2.
+[![CI](https://github.com/Anna1293/graceful-echo-server/actions/workflows/ci.yml/badge.svg)](https://github.com/Anna1293/graceful-echo-server/actions/workflows/ci.yml)
+[![Go](https://img.shields.io/badge/Go-1.25+-00ADD8?logo=go&logoColor=white)](https://go.dev/)
 
-## Возможности
+Go echo backend with a **TLS reverse proxy** (Nginx replacement): HTTP/2, graceful shutdown, modular `internal/*` layout.
 
-- Эндпоинт `GET /echo` с необязательными параметрами сообщения и задержки
-- Обработка отмены запроса через `r.Context().Done()`
-- Корректное завершение по `SIGINT` и `SIGTERM`
-- Reverse proxy на Go (без Nginx) через стандартный `net/http`
-- TLS-терминация и HTTP/2 на входящем HTTPS-трафике
+---
 
-## Требования
+## Architecture
+
+```text
+Client --HTTPS :8443--> [ reverse proxy ] --HTTP :8080--> [ echo backend ]
+                              |                                  |
+                         TLS terminate                    GET /echo, /health
+```
+
+```mermaid
+flowchart LR
+  C[Client] -->|HTTPS 8443| P[proxy]
+  P -->|HTTP 8080| E[echo]
+```
+
+---
+
+## Features
+
+- `GET /echo` — optional `msg` and `delay` query params
+- Request cancellation via `r.Context()`
+- Graceful shutdown on `SIGINT` / `SIGTERM`
+- Reverse proxy on `net/http` with `X-Forwarded-*` headers
+- TLS termination and HTTP/2 on `:8443`
+- `GET /health` on backend and proxy (Docker healthcheck)
+- Self-signed TLS certs on first run (or generate via script)
+
+---
+
+## Requirements
 
 - Go 1.25+
+- Optional: Docker, OpenSSL (for cert scripts)
 
-## Запуск
+---
+
+## Quick start
 
 ```bash
 go run .
 ```
 
-Сервис поднимает два сервера:
-- backend (`http`) на `:8080`;
-- reverse proxy (`https`) на `:8443` с поддержкой HTTP/2.
+Servers:
 
-## Использование
+| Service | Address | Protocol |
+|---------|---------|----------|
+| Backend | `:8080` | HTTP |
+| Proxy   | `:8443` | HTTPS (HTTP/2) |
 
-### Простой запрос
+### Examples
 
 ```bash
-curl "http://localhost:8080/echo?msg=hello&delay=3"
+curl http://localhost:8080/health
+curl "http://localhost:8080/echo?msg=hello&delay=0"
+curl -k --http2 "https://localhost:8443/echo?msg=hello&delay=0"
 ```
 
-Ответ:
+`-k` skips verification of the self-signed certificate.
 
-```text
-echo: hello
-```
+---
 
-### Значения по умолчанию
+## Configuration (env)
 
-Если параметр `msg` не передан, сервер отвечает `echo`.
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `BACKEND_ADDR` | `:8080` | Echo server listen address |
+| `PROXY_ADDR` | `:8443` | TLS proxy listen address |
+| `TLS_CERT_FILE` | `certs/server.crt` | Certificate path |
+| `TLS_KEY_FILE` | `certs/server.key` | Private key path |
 
-Если параметр `delay` не передан, сервер использует `5` секунд.
+---
 
-### Валидация
+## TLS certificates
 
-`delay` должен быть неотрицательным целым числом. Иначе сервер возвращает `400 Bad Request`.
+Auto-created in `certs/` on first start if files are missing.
 
-## Graceful shutdown
-
-1. Запусти сервер: `go run .`
-2. Отправь длинный запрос (например, с `delay=10`)
-3. Останови сервер через `Ctrl+C`
-
-Оба сервера (backend и proxy) перестают принимать новые запросы и ждут до 10 секунд завершения активных запросов.
-
-## Структура проекта
-
-| Пакет | Назначение |
-|-------|------------|
-| `main.go` | Запуск backend и TLS reverse proxy, graceful shutdown |
-| `internal/echo` | Echo backend (`GET /echo`) |
-| `internal/proxy` | Reverse proxy (замена Nginx), заголовки `X-Forwarded-*` |
-| `internal/certs` | Self-signed TLS при первом запуске |
-| `internal/config` | Адреса и пути к сертификатам (env) |
-
-## TLS и HTTP/2 для reverse proxy
-
-При первом `go run .` сертификаты создаются автоматически в `certs/` (если файлов ещё нет). Либо вручную:
+Manual generation:
 
 ```powershell
 .\scripts\generate-certs.ps1
 ```
 
-Файлы: `certs/server.crt`, `certs/server.key` (в `.gitignore`).
-
-### Запустить приложение
-
 ```bash
-go run .
+sh scripts/generate-certs.sh
+# or: make certs-sh
 ```
 
-### Проверить HTTPS + HTTP/2
+Cert files are gitignored.
+
+---
+
+## Tests
 
 ```bash
-curl -k --http2 "https://localhost:8443/echo?msg=hello&delay=1"
+go test ./...
+go test -race ./...
+make test
+make test-race
 ```
 
-Опция `-k` нужна, потому что сертификат самоподписанный.
+---
+
+## Docker
+
+```bash
+docker compose up --build
+```
+
+Ports: `8080` (backend), `8443` (HTTPS proxy).  
+Volume `./certs` is writable so certs can be generated on first run.
+
+```bash
+curl http://localhost:8080/health
+curl -k https://localhost:8443/health
+```
+
+---
+
+## Project layout
+
+| Path | Role |
+|------|------|
+| `main.go` | Wiring, graceful shutdown |
+| `internal/echo` | Echo API (`/echo`, `/health`) |
+| `internal/proxy` | Reverse proxy, forwarding headers |
+| `internal/certs` | Self-signed TLS generation |
+| `internal/config` | Env-based configuration |
+
+---
+
+## Make targets
+
+| Target | Action |
+|--------|--------|
+| `make run` | Run locally |
+| `make test` | Unit tests |
+| `make test-race` | Tests with race detector |
+| `make build` | Build binary to `bin/` |
+| `make docker` | `docker compose up --build` |
+| `make certs-sh` | Generate certs (shell) |
+
+---
+
+## Graceful shutdown
+
+1. Start: `go run .`
+2. Send a long request: `curl "http://localhost:8080/echo?delay=10"`
+3. Press `Ctrl+C`
+
+Both servers stop accepting new connections and wait up to 10s for in-flight requests.
+
+---
+
+## License
+
+MIT — see [LICENSE](LICENSE).

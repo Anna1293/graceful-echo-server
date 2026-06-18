@@ -8,6 +8,20 @@ import (
 	"testing"
 )
 
+func TestHealthHandler(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/health", nil)
+	rec := httptest.NewRecorder()
+
+	healthHandler(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	if got := rec.Body.String(); got != "ok\n" {
+		t.Fatalf("body = %q", got)
+	}
+}
+
 func TestEchoDefaults(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/echo", nil)
 	rec := httptest.NewRecorder()

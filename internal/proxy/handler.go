@@ -33,7 +33,7 @@ func NewHandler(target *url.URL, opts Options) http.Handler {
 		},
 	}
 
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	proxy := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		upstreamURL := *target
 		upstreamURL.Path = r.URL.Path
 		upstreamURL.RawPath = r.URL.RawPath
@@ -61,5 +61,14 @@ func NewHandler(target *url.URL, opts Options) http.Handler {
 		copyHeaders(w.Header(), resp.Header)
 		w.WriteHeader(resp.StatusCode)
 		_, _ = io.Copy(w, resp.Body)
+	})
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/health" && r.Method == http.MethodGet {
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte("ok\n"))
+			return
+		}
+		proxy.ServeHTTP(w, r)
 	})
 }
